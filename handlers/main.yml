@@ -1,0 +1,5 @@
+---
+- name: Restart tinc
+  service:
+    name: "{{ tinc_service_name }}@{{ tinc_netname }}"
+    state: restarted
