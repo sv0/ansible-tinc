@@ -1,0 +1,51 @@
+---
+tinc_netname: vpn
+
+# tinc_mode can be router, switch, or hub.
+# See https://www.tinc-vpn.org/documentation/tinc.conf.5.
+tinc_mode: router
+
+################################
+# VPN internal network details #
+################################
+
+# tinc_vpn_interface is the interface for the vpn
+tinc_vpn_interface: tun0
+
+# tinc_vpn_ip has to be set on the host level
+# and will be applied on tinc_vpn_interface
+# with the tinc_vpn_cidr:
+tinc_vpn_cidr: "/24"
+
+# tinc_vpn_routes can add routes to flow through the VPN
+tinc_vpn_routes: []
+# tinc_vpn_routes:
+#   - dest:
+#     gateway:
+
+# VPN external network connection details
+
+# tinc_address_family on which tincd will bind.
+# can be ipv4/ipv6/any
+tinc_address_family: ipv4
+
+# tinc_control_plane_bind_ip will automatically find a suitable address
+# on which VPN peers can connect to
+# (Default: ip address matching the default route)
+# Traffic from tincd is not restricted to this interface, it's
+# only the interface on which vpn peers can connect.
+# Example, if you want tinc to be reachable on eth0:
+# tinc_control_plane_bind_ip: "{{ ansible_eth0['ipv4']['address'] }}"
+tinc_control_plane_bind_ip: "{{ ansible_default_ipv4.address }}"
+
+tinc_external_ip: "{{ tinc_control_plane_bind_ip }}"
+
+# http://www.tinc-vpn.org/documentation/tinc.conf.5
+# BindToAddress = address [port] [experimental]
+tinc_port: 655
+
+tinc_package: tinc
+tinc_package_state: present
+tinc_key_size: 4096
+
+tinc_service_name: tinc
