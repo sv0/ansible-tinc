@@ -1,0 +1,10 @@
+Name = {{ inventory_hostname | replace('.','_') | replace('-','_') }}
+Mode = {{ tinc_mode }}
+AddressFamily = {{ tinc_address_family }}
+Interface = {{ tinc_vpn_interface }}
+BindToAddress = {{ tinc_control_plane_bind_ip }} {{ tinc_port }}
+{% for host in groups['tinc_spine_nodes'] %}
+{% if (inventory_hostname != hostvars[host]['inventory_hostname'] and inventory_hostname in groups['tinc_leaf_nodes']) or tinc_mode in ['switch','hub'] %}
+ConnectTo = {{ hostvars[host]['inventory_hostname'] | replace('.','_') | replace('-','_') }}
+{% endif %}
+{% endfor %}

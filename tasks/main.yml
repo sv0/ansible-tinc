@@ -1,0 +1,161 @@
+---
+- name: Basic debug
+  ansible.builtin.debug:
+    var: ansible_env
+  tags:
+    - debug
+
+- name: Debug command
+  ansible.builtin.command: env
+  tags:
+    - debug
+
+- name: Debug 2
+  ansible.builtin.debug:
+    msg: "ansible_play_batch: {{ ansible_play_batch }}\n
+          hosts:  hostvars \n
+          tinc_external_ip:
+            {{ hostvars[ansible_host].get('tinc_external_ip') }} \n
+          {{ ansible_all_ipv4_addresses }} \n
+          ansible_host: {{ ansible_host }} \n
+         "
+  tags:
+    - debug
+
+- name: Install tinc
+  package:
+    update_cache: "{{ (ansible_os_family == 'debian') }}"
+    name: "{{ tinc_package }}"
+    state: "{{ tinc_package_state }}"
+  tags:
+    - tinc_install
+    - install
+  when:
+    - tinc_package is defined
+    - (tinc_package)
+
+- name: Ensure tinc netname directory exists
+  file:
+    path: "/etc/tinc/{{ tinc_netname }}/hosts"
+    recurse: true
+    state: directory
+
+- name: Create base tinc.conf configuration
+  template:
+    src: tinc.conf.j2
+    dest: "/etc/tinc/{{ tinc_netname }}/tinc.conf"
+    mode: "0644"
+  notify:
+    - Restart tinc
+  tags: connection
+
+- name: Create tinc-up file
+  template:
+    src: tinc-up.j2
+    dest: "/etc/tinc/{{ tinc_netname }}/tinc-up"
+    mode: 0755
+  notify:
+    - Restart tinc
+
+- name: Create tinc-down file
+  template:
+    src: tinc-down.j2
+    dest: "/etc/tinc/{{ tinc_netname }}/tinc-down"
+    mode: 0755
+  notify:
+    - Restart tinc
+
+- name: Generate connection file for the other nodes
+  lineinfile:
+    dest: "/etc/tinc/{{ tinc_netname }}/hosts/{{ inventory_hostname | replace('.','_') | replace('-','_') }}"
+    regexp: "^Address ="
+    line: "Address = {{ tinc_external_ip }} {{ tinc_port }}"
+    create: true
+    mode: "0644"
+  when: inventory_hostname in groups['tinc_spine_nodes']
+  notify:
+    - Restart tinc
+
+- name: Ensure subnet ip address is properly set in tinc host file
+  lineinfile:
+    dest: "/etc/tinc/{{ tinc_netname }}/hosts/{{ inventory_hostname | replace('.','_') | replace('-','_') }}"
+    regexp: "^Subnet ="
+    line: "Subnet = {{ tinc_vpn_ip }}/32"
+    # see https://www.tinc-vpn.org/examples/redirect-gateway/
+    # line: "Subnet = 0.0.0.0/0"  # needed to operate as exit node
+    mode: "0644"
+    create: true
+  when: tinc_mode == 'router'
+  notify:
+    - Restart tinc
+
+- name: Check whether /etc/tinc/netname/hosts/inventory_hostname contains public key
+  lineinfile:
+    dest: "/etc/tinc/{{ tinc_netname }}/hosts/{{ inventory_hostname | replace('.','_') | replace('-','_') }}"
+    line: "-----END RSA PUBLIC KEY-----"
+  check_mode: true
+  register: contains_publickey_ending
+
+# this is necessary because the public key will not be generated (non-interactively) if the private key already exists
+- name: Delete private key and regenerate keypair if public key is absent from tinc hosts file
+  file:
+    path: "/etc/tinc/{{ tinc_netname }}/rsa_key.priv"
+    state: absent
+  when: contains_publickey_ending.changed
+  tags:
+    # Ansible lint recommends this to be handler, but this would make the role more complex.
+    - skip_ansible_lint
+
+- name: Generate tinc keys and append public key to host file
+  block:
+    - name: Create using tincd -K
+      command: "tincd -n {{ tinc_netname }} -K{{ tinc_key_size }}"
+      args:
+        creates: "/etc/tinc/{{ tinc_netname }}/rsa_key.priv"
+      notify:
+        - Restart tinc
+  rescue:
+    - name: Create using tinc client
+      command: "tinc -n {{ tinc_netname }} generate-keys {{ tinc_key_size }}"
+      args:
+        creates: "/etc/tinc/{{ tinc_netname }}/rsa_key.priv"
+      notify:
+        - Restart tinc
+
+- name: Get tinc hosts file after key creation
+  slurp:
+    src: "/etc/tinc/{{ tinc_netname }}/hosts/{{ inventory_hostname | replace('.','_') | replace('-','_') }}"
+  register: tinc_host_file
+
+- name: Upload all hosts files on each host
+  copy:
+    # yamllint disable rule:line-length
+    dest: "/etc/tinc/{{ tinc_netname }}/hosts/{{ item | replace('.','_') | replace('-','_') }}"
+    content: "{{ hostvars[item]['tinc_host_file']['content'] | b64decode }}"
+    mode: 0644
+    # yamllint enable rule:line-length
+  loop: "{{ ansible_play_batch }}"
+  when: item != inventory_hostname
+  notify:
+    - Restart tinc
+
+# TODO FIXME
+#- name: Add nodes to /etc/hosts
+#  lineinfile:
+#    dest: /etc/hosts
+#    regexp: "^{{ hostvars[item].tinc_vpn_ip }}"
+#    line: "{{ hostvars[item].tinc_vpn_ip }} {{ item }}"
+#    state: present
+#  when: hostvars[item].tinc_vpn_ip is defined
+#  with_items: "{{ ansible_play_batch }}"
+#  tags:
+#    - tinc_internal_hosts
+#    # https://github.com/ansible-community/molecule/issues/959
+#    - molecule-notest
+
+- name: Ensure tinc systemd service is enabled
+  service:
+    name: "{{ tinc_service_name }}@{{ tinc_netname }}"
+    daemon_reload: true
+    enabled: true
+  when: ansible_service_mgr == 'systemd'
