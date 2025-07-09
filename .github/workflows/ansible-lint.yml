@@ -1,15 +1,14 @@
 ---
 name: ansible-lint
-on:
+on:  # yamllint disable-line rule:truthy
   pull_request:
     branches:
       - "master"
-      - "stable"
       - "release/v*"
 jobs:
   build:
-    name: Ansible Lint # Naming the build is important to use it as a status check
-    runs-on: ubuntu-24.04
+    name: Ansible Lint
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Run ansible-lint
