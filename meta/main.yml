@@ -13,26 +13,24 @@ galaxy_info:
         - bullseye
         - bookworm
         - trixie
+
     - name: Ubuntu
       versions:
         - jammy  # 22.04
         - noble  # 24.04
 
-# - name: OpenBSD
-#   versions:
-#   - all
-#   - 5.6
-#   - 5.7
-#   - 5.8
-#   - 5.9
-#   - 6.0
-# - name: FreeBSD
-#   versions:
-#   - 11.0
-# - name: Alpine
-#   versions:
-#   - all
-#   - any
+    - name: Alpine
+      versions:
+        - all
+        - any
+
+  #  Not tested
+  #  - name: OpenBSD
+  #    versions:
+  #    - 8.0
+  #  - name: FreeBSD
+  #    versions:
+  #    - 11.0
 
   galaxy_tags:
     - vpn
