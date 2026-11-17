@@ -1,0 +1,15 @@
+---
+- name: Touch /etc/conf.d/tinc.networks
+  ansible.builtin.file:
+    path: /etc/conf.d/tinc.networks
+    state: touch
+
+- name: Configure VPN networks
+  ansible.builtin.template:
+    src: tinc.networks.j2
+    dest: /etc/conf.d/tinc.networks
+    owner: root
+    group: root
+    mode: '0600'
+    backup: true
+
