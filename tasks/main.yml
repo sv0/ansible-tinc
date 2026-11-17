@@ -5,12 +5,12 @@
   tags:
     - debug
 
-- name: Debug command
+- name: Debug env
   ansible.builtin.command: env
   tags:
     - debug
 
-- name: Debug 2
+- name: Debug hostvars
   ansible.builtin.debug:
     msg: "ansible_play_batch: {{ ansible_play_batch }}\n
           hosts:  hostvars \n
@@ -23,34 +23,37 @@
     - debug
 
 - name: Install tinc
-  package:
+  ansible.builtin.package:
     update_cache: "{{ (ansible_os_family == 'debian') }}"
     name: "{{ tinc_package }}"
     state: "{{ tinc_package_state }}"
   tags:
-    - tinc_install
     - install
-  when:
-    - tinc_package is defined
-    - (tinc_package)
+
+- name: Create symlink /etc/tinc > /usr/pkg/etc/tinc
+  ansible.builtin.file:
+    src: /usr/pkg/etc/tinc
+    dest: /etc/tinc
+    state: link
+  when: ansible_distribution == "NetBSD"
 
 - name: Ensure tinc netname directory exists
-  file:
+  ansible.builtin.file:
     path: "/etc/tinc/{{ tinc_netname }}/hosts"
     recurse: true
     state: directory
 
 - name: Create base tinc.conf configuration
-  template:
+  ansible.builtin.template:
     src: tinc.conf.j2
     dest: "/etc/tinc/{{ tinc_netname }}/tinc.conf"
     mode: "0644"
   notify:
     - Restart tinc
-  tags: connection
+  tags: conf
 
 - name: Create tinc-up file
-  template:
+  ansible.builtin.template:
     src: tinc-up.j2
     dest: "/etc/tinc/{{ tinc_netname }}/tinc-up"
     mode: 0755
